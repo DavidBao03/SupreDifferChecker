@@ -1,11 +1,10 @@
-//
-// Created by 鲍子硕 on 2023/4/12.
-//
-
 #include "TXTchecker.h"
 #include <fstream>
 #include <vector>
 #include <string>
+
+bool flag_add = true;
+bool flag_delete = true;
 
 using std::string, std::vector, std::cout, std::endl;
 
@@ -36,7 +35,7 @@ void TXTchecker::compare() {
         v2.push_back(str);
     }
 
-    int length = v2.size() + 1;
+    unsigned long length = v2.size() + 1;
     int *record = new int[length];
     auto **strRecords = new string *[length];
     for (int i = 0; i < length; i++) {
@@ -54,23 +53,33 @@ void TXTchecker::compare() {
         if (v1Index >= v1.size() && v2Index >= v2.size())
             break;
         if (v1[v1Index] != v2[v2Index]) {
-            if (v1.size() > v2.size()) {
-                if (judgeForDelete(v1, v2, v1Index, v2Index, record, strRecords)) {
-                    v1.erase(v1.begin() + v2Index, v1.begin() + v1Index);
-                    v1Index = v2Index;
-                    if (v1.size() < v2.size()) {
-                        judgeForAdd(v1, v2, v1Index, v2Index, record, strRecords);
-                    }
+            if (judgeForDelete(v1, v2, v1Index, v2Index, record, strRecords)) {
+                v1.erase(v1.begin() + v2Index, v1.begin() + v1Index);
+                v1Index = ++v2Index;
+                flag_delete = true;
+                while (v1.size() < v2.size()) {
+                    v1.insert(v1.begin() + v1Index, v2[v2Index]);
+                    *(record + v1Index) += 1;
+                    strRecords[v1Index][1] = v2[v2Index];
+                    v1Index++;
+                    v2Index++;
                 }
-            } else if (v1.size() == v2.size()) {
-                cout << "\033[34m" << "change: " << v1[v1Index] << " into " << v2[v2Index] << "\033[0m" << endl;
+            } else if (judgeForAdd(v1, v2, v1Index = v2Index, v2Index, record, strRecords)) {
+                flag_add = true;
+                v1Index = v2Index;
+            } else {
+                v2Index = v1Index;
+                if (v1Index == v1.size())
+                    cout << "\033[34m" << "add: " << v2[v2Index] << "\033[0m" << endl;
+                else
+                    cout << "\033[34m" << "change: " << v1[v1Index] << " into " << v2[v2Index] << "\033[0m" << endl;
                 string index = "index#" + std::to_string(v2Index + 1) + ": ";
                 changes.push_back(index + v1[v1Index] + "->" + v2[v2Index]);
                 v1[v1Index] = v2[v2Index];
-            } else if (v1.size() < v2.size()) {
-                judgeForAdd(v1, v2, v1Index, v2Index, record, strRecords);
             }
         }
+        flag_add = true;
+        flag_delete = true;
         v1Index++;
         v2Index++;
     }
@@ -113,37 +122,46 @@ vector<string> &TXTchecker::getChange() {
     return changes;
 }
 
-void TXTchecker::save(const string& pathDest) {
+void TXTchecker::save(const string &pathDest) {
 
 }
 
+
 bool judgeForDelete(vector<string> &v1, vector<string> &v2, int &v1Index, int &v2Index, int *record, string **str) {
+    int origin = v1Index;
+
     if (v1[v1Index] == v2[v2Index]) {
         return true;
     }
 
-    *(record + v1Index) += 1;
-    str[v1Index][0] = v1[v1Index];
-
-    if (++v1Index >= v1.size()) {
-        return true;
+    if (v1Index + 1 >= v1.size()) {
+        v1Index++;
+        flag_delete = false;
+        return false;
     }
-    return judgeForDelete(v1, v2, v1Index, v2Index, record, str);
+    if (judgeForDelete(v1, v2, ++v1Index, v2Index, record, str)) {
+        *(record + origin) += 1;
+        str[origin][0] = v1[origin];
+    }
+    return flag_delete;
 }
 
 bool judgeForAdd(vector<string> &v1, vector<string> &v2, int &v1Index, int &v2Index, int *record, string **str) {
-    if (v1.size() < v2.size()) goto cross;
+    int origin = v2Index;
     if (v1[v1Index] == v2[v2Index]) {
         return true;
     }
-    cross:
-    v1.insert(v1.begin() + v2Index, v2[v2Index]);
-    *(record + v2Index) += 1;
-    str[v2Index][1] = v2[v2Index];
 
-    if (++v2Index >= v2.size()) {
-        return true;
+    if (v2Index + 1 >= v2.size()) {
+        v2Index++;
+        flag_add = false;
+        return false;
     }
-    v1Index++;
-    return judgeForAdd(v1, v2, v1Index, v2Index, record, str);
+
+    if (judgeForAdd(v1, v2, v1Index, ++v2Index, record, str)) {
+        v1.insert(v1.begin() + origin, v2[origin]);
+        *(record + origin) += 1;
+        str[origin][1] = v2[origin];
+    }
+    return flag_add;
 }
